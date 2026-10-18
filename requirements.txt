@@ -1,0 +1,10 @@
+# Python 3.11.9 で確認。torch は CPU 版(GPU のPCでは https://pytorch.org/ の案内に従って入れ替える)
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch==2.14.1
+numpy==2.4.6
+scipy==1.17.1
+pandas==3.0.6
+opencv-python==5.0.0.93
+matplotlib==3.11.2
+streamlit==1.66.0
+pytest==9.1.1

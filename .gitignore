@@ -1,0 +1,22 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.streamlit/
+
+# データ(学習データは generate_light_dataset.py で、明るさの列は measure_clips.py / evaluate_sentences.py で作り直せる)
+data/
+
+# モデルの重み・評価結果
+models/*.pt
+models_*/*.pt
+models/*.csv
+models_*/*.csv
+evaluation/*.csv
+evaluation/*.png
+
+# 実行ログ・Officeのロックファイル
+*.log
+*.err
+~$*
