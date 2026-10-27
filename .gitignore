@@ -15,6 +15,7 @@ models/*.csv
 models_*/*.csv
 evaluation/*.csv
 evaluation/*.png
+evaluation/augmented_samples/
 
 # 実行ログ・Officeのロックファイル
 *.log
