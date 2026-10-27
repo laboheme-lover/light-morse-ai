@@ -45,6 +45,18 @@
 文章の動画の悪条件では、夕方・霧で点灯と消灯の明るさの差が約半分(232 → 117〜141)になった。雨・背景の光源・雑音はランプの明るさにはほとんど影響せず、主に光源の検知(おとりに引っかからないか)を試している。
 1文字の動画より成績が良いのは、光源を探す最初の60秒に長短の並びが何十文字分も写り、規則正しく点滅するおとりと区別しやすいため。
 
+## 新しい PC で使う(GitHub から)
+
+1. Python 3.11 と GitHub CLI(gh)を入れ、`gh auth login` でログインする(リポジトリが非公開のため)
+2. `gh repo clone laboheme-lover/light-morse-ai` で取ってくる
+3. `setup.bat` をダブルクリック: `.venv` を作ってパッケージを入れ、学習済みモデル(`models/best_model.pt`)を Releases から取ってくる
+4. `start_app.bat` をダブルクリック: ブラウザでアプリが開く(http://localhost:8503)
+
+モデルを取ってこられないときは、https://github.com/laboheme-lover/light-morse-ai/releases から `best_model.pt` を落として `models` に置く。
+動画・評価の結果は Git に入れていないので、評価をやり直すときは元の PC から移す。
+
+`main` への push と Pull Request のたびに、GitHub Actions でテストが動く(`.github/workflows/test.yml`)。
+
 ## 使い方
 
 ```powershell
