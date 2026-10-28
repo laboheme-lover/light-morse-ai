@@ -6,7 +6,7 @@ R10 で撮った動画を渡すと、
   (3) 1文字ずつに区切ってモデルで読み、文章として表示する(確信度の低い文字は色を付ける)
 
 起動: streamlit run app.py
-文章の動画は数GBになるので、ファイルの場所(パス)を入力して渡すのが基本。1GBまでならアップロードもできる。
+文章の動画は数GBになるので、ファイルの場所(パス)を渡すのが基本(「参照…」で選ぶか、入力する)。1GBまでならアップロードもできる。
 """
 
 from __future__ import annotations
@@ -14,6 +14,8 @@ from __future__ import annotations
 import html
 import json
 import os
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -41,9 +43,39 @@ MODELS_DIR = APP_DIR / "models"
 DEFAULT_LOW_CONFIDENCE = 0.5
 ONLINE_ONLY = 0x400000 | 0x1000  # OneDrive の「オンラインのみ」のファイルの属性
 MAX_CANDIDATES_SHOWN = 5
+DEFAULT_VIDEO_DIR = Path.home() / "OneDrive" / "光点滅テスト"
+
+# ファイルを選ぶ画面を開いて、選んだ場所を UTF-8 で書き出す(取り消したら何も書かない)
+PICK_SCRIPT = r'''
+import sys
+import tkinter as tk
+from tkinter import filedialog
+root = tk.Tk()
+root.withdraw()
+root.attributes("-topmost", True)  # ブラウザの後ろに隠れないよう、いちばん手前に出す
+path = filedialog.askopenfilename(parent=root, title="動画を選ぶ", initialdir=sys.argv[1] or None,
+                                  filetypes=[("動画", "*.mp4 *.mov"), ("すべてのファイル", "*.*")])
+sys.stdout.buffer.write(path.encode("utf-8"))
+'''
 
 
 # --- 処理(画面から独立。単体テストできる) ------------------------------------
+
+
+def initial_dir_for(current: str, default: Path = DEFAULT_VIDEO_DIR) -> str:
+    """ファイルを選ぶ画面を最初に開く場所。入力済みの動画のフォルダ、なければ光点滅テストのフォルダ。"""
+    folder = Path(current.strip().strip('"')).parent if current.strip() else None
+    if folder is not None and folder.is_dir():
+        return str(folder)
+    return str(default) if default.is_dir() else ""
+
+
+def pick_video_file(initial_dir: str = "", runner=subprocess.run) -> str:
+    """Windows のファイルを選ぶ画面を開き、選んだ動画の場所を返す(取り消したら空文字)。
+    アプリはこの PC の中で動いているので、画面もこの PC に出る。Streamlit のスレッドで Tk を動かさないよう別のプロセスで開く。"""
+    done = runner([sys.executable, "-c", PICK_SCRIPT, initial_dir], capture_output=True, check=False)
+    chosen = done.stdout.decode("utf-8").strip()
+    return str(Path(chosen)) if chosen else ""
 
 
 def ensure_local(path: str) -> None:
@@ -194,6 +226,13 @@ def get_brightness(path: str, mtime: float, roi: Roi) -> np.ndarray:
 # --- 画面 -------------------------------------------------------------------
 
 
+def _browse() -> None:
+    """「参照…」を押したとき。入力欄が作られる前(再実行の前)に呼ばれるので、ここで欄の値を差し替える。"""
+    chosen = pick_video_file(initial_dir_for(st.session_state.get("video_path", "")))
+    if chosen:
+        st.session_state["video_path"] = chosen
+
+
 def main() -> None:
     st.set_page_config(page_title="光モールス信号AI翻訳", page_icon="🔦", layout="wide")
     st.title("🔦 光モールス信号AI翻訳")
@@ -211,8 +250,13 @@ def main() -> None:
                              help="確信度がこの値未満の文字を「要確認」として色を付けます。")
 
     st.subheader("1. 動画を選ぶ")
-    path_input = st.text_input("動画ファイルの場所(例: C:\\Users\\daizo\\OneDrive\\光点滅テスト\\...\\xxx.mp4)",
-                               help="文章の動画は数GBになるため、ファイルの場所を入力してください。OneDrive のファイルも使えます(読み込み時にダウンロードされます)。")
+    col_path, col_browse = st.columns([6, 1], vertical_alignment="bottom")
+    path_input = col_path.text_input(
+        "動画ファイルの場所(例: C:\\Users\\daizo\\OneDrive\\光点滅テスト\\...\\xxx.mp4)", key="video_path",
+        help="文章の動画は数GBになるため、「参照…」で選ぶか、ファイルの場所を入力してください。大きさの上限はありません。"
+        "OneDrive のファイルも使えます(読み込み時にダウンロードされます)。")
+    col_browse.button("参照…", on_click=_browse, use_container_width=True,
+                      help="ファイルを選ぶ画面を開きます(ブラウザの手前に出ます)。")
     uploaded = st.file_uploader("または動画をアップロード(1GBまで)", type=["mp4", "mov"])
     path = ""
     if uploaded is not None:

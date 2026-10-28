@@ -1,6 +1,10 @@
+import subprocess
+from pathlib import Path
+
 import numpy as np
 
-from app import best_preview_frame, build_char_table, draw_candidates, render_text_html, zoom_crop
+from app import (best_preview_frame, build_char_table, draw_candidates, initial_dir_for, pick_video_file,
+                 render_text_html, zoom_crop)
 from light_roi import Roi, rank_signal_rois
 from light_sequence import Segment, SequenceResult
 from test_light_roi import LAMP, make_video
@@ -33,3 +37,26 @@ def test_text_html_highlights_low_confidence():
     out = render_text_html(_result(), 0.5)
     assert "ガ" in out and "゛" not in out  # 濁音は1文字にまとめる
     assert 'title="確信度 0.30">ガ<' in out  # 確信度は2区間のうち低いほう
+
+
+def test_pick_video_file_returns_chosen_path_or_empty():
+    calls = []
+
+    def fake(stdout):
+        def run(args, **kwargs):
+            calls.append(args)
+            return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr=b"")
+        return run
+
+    chosen = pick_video_file("C:/videos", runner=fake("C:/動画/文章_sentence.mp4\n".encode("utf-8")))
+    assert chosen == str(Path("C:/動画/文章_sentence.mp4"))  # Windows では区切り文字を \ に直す
+    assert calls[0][-1] == "C:/videos"  # 最初に開く場所を渡す
+    assert pick_video_file(runner=fake(b"")) == ""  # 取り消し
+
+
+def test_initial_dir_for_uses_folder_of_current_video(tmp_path):
+    video = tmp_path / "a.mp4"
+    video.write_bytes(b"")
+    assert initial_dir_for(f'"{video}"', default=tmp_path / "none") == str(tmp_path)
+    assert initial_dir_for("", default=tmp_path) == str(tmp_path)
+    assert initial_dir_for("", default=tmp_path / "none") == ""
