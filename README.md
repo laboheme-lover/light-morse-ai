@@ -1,5 +1,7 @@
 # 光モールス信号AI翻訳(light-morse-ai)
 
+このリポジトリのコードと文書は、Claude Code(Anthropic の AI)に日本語で指示して作成した。
+
 スマホのランプの点滅(和文モールス信号)を R10 で撮った動画から、点滅している光源を自動で見つけて、
 文章として読み取るアプリ。音のモールス信号のアプリ(`../morse-ai`)と同じ考え方で作った。
 
@@ -47,13 +49,13 @@
 
 ## 新しい PC で使う(GitHub から)
 
-1. Python 3.11 と GitHub CLI(gh)を入れ、`gh auth login` でログインする(リポジトリが非公開のため)
-2. `gh repo clone laboheme-lover/light-morse-ai` で取ってくる
+1. Python 3.11 を入れる(https://www.python.org/)
+2. `git clone https://github.com/laboheme-lover/light-morse-ai.git` で取ってくる(または GitHub のページの Code → Download ZIP)
 3. `setup.bat` をダブルクリック: `.venv` を作ってパッケージを入れ、学習済みモデル(`models/best_model.pt`)を Releases から取ってくる
 4. `start_app.bat` をダブルクリック: ブラウザでアプリが開く(http://localhost:8503)
 
 モデルを取ってこられないときは、https://github.com/laboheme-lover/light-morse-ai/releases から `best_model.pt` を落として `models` に置く。
-動画・評価の結果は Git に入れていないので、評価をやり直すときは元の PC から移す。
+評価に使った動画と評価の結果はリポジトリに含めていない。
 
 `main` への push と Pull Request のたびに、GitHub Actions でテストが動く(`.github/workflows/test.yml`)。
 
@@ -80,3 +82,7 @@ python -m venv .venv
 `evaluate_augmented_sentences.py`(映像の悪条件をかけた文章の動画)。
 
 `morse_table.py` は音のプロジェクト(`../morse-ai/morse_table.py`)の写し。文字と符号の表を音と揃えるため、変更しないこと。
+
+## ライセンス
+
+MIT ライセンス(`LICENSE`)。

@@ -252,7 +252,7 @@ def main() -> None:
     st.subheader("1. 動画を選ぶ")
     col_path, col_browse = st.columns([6, 1], vertical_alignment="bottom")
     path_input = col_path.text_input(
-        "動画ファイルの場所(例: C:\\Users\\daizo\\OneDrive\\光点滅テスト\\...\\xxx.mp4)", key="video_path",
+        "動画ファイルの場所(例: C:\\動画\\xxx_sentence.mp4)", key="video_path",
         help="文章の動画は数GBになるため、「参照…」で選ぶか、ファイルの場所を入力してください。大きさの上限はありません。"
         "OneDrive のファイルも使えます(読み込み時にダウンロードされます)。")
     col_browse.button("参照…", on_click=_browse, use_container_width=True,
