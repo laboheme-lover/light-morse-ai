@@ -1,10 +1,11 @@
+import io
 import subprocess
 from pathlib import Path
 
 import numpy as np
 
-from app import (best_preview_frame, build_char_table, draw_candidates, initial_dir_for, pick_video_file,
-                 render_text_html, zoom_crop)
+from app import (best_preview_frame, build_char_table, draw_candidates, ensure_model, initial_dir_for,
+                 pick_video_file, render_text_html, save_upload, zoom_crop)
 from light_roi import Roi, rank_signal_rois
 from light_sequence import Segment, SequenceResult
 from test_light_roi import LAMP, make_video
@@ -60,3 +61,34 @@ def test_initial_dir_for_uses_folder_of_current_video(tmp_path):
     assert initial_dir_for(f'"{video}"', default=tmp_path / "none") == str(tmp_path)
     assert initial_dir_for("", default=tmp_path) == str(tmp_path)
     assert initial_dir_for("", default=tmp_path / "none") == ""
+
+
+def test_ensure_model_downloads_once_and_cleans_up_on_failure(tmp_path):
+    source = tmp_path / "release.pt"
+    source.write_bytes(b"weights")
+    dst = tmp_path / "models" / "best_model.pt"
+    ensure_model(dst, url=source.as_uri())
+    assert dst.read_bytes() == b"weights"
+    ensure_model(dst, url=(tmp_path / "missing.pt").as_uri())  # あるときは取りに行かない
+    other = tmp_path / "other" / "best_model.pt"
+    try:
+        ensure_model(other, url=(tmp_path / "missing.pt").as_uri())
+        raise AssertionError("取ってこられないときは例外になるはず")
+    except OSError:
+        pass
+    assert not other.exists() and not list(other.parent.glob("*.part"))  # 途中のファイルを残さない
+
+
+class _Upload(io.BytesIO):
+    """Streamlit の UploadedFile の代わり(必要な属性だけ)"""
+
+    def __init__(self, data: bytes, name: str, file_id: str):
+        super().__init__(data)
+        self.name, self.file_id, self.size = name, file_id, len(data)
+
+
+def test_save_upload_keeps_uploads_with_same_name_apart(tmp_path):
+    a = save_upload(_Upload(b"aaaa", "video.MP4", "id1"), tmp_path)
+    b = save_upload(_Upload(b"bbbb", "video.MP4", "id2"), tmp_path)  # 同じ名前・同じ大きさの別の動画
+    assert a != b and a.suffix == ".mp4"
+    assert a.read_bytes() == b"aaaa" and b.read_bytes() == b"bbbb"

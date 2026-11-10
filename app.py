@@ -14,9 +14,11 @@ from __future__ import annotations
 import html
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 from pathlib import Path
 
 import cv2
@@ -44,6 +46,12 @@ DEFAULT_LOW_CONFIDENCE = 0.5
 ONLINE_ONLY = 0x400000 | 0x1000  # OneDrive の「オンラインのみ」のファイルの属性
 MAX_CANDIDATES_SHOWN = 5
 DEFAULT_VIDEO_DIR = Path.home() / "OneDrive" / "光点滅テスト"
+# 学習済みモデルはリポジトリに入れず、GitHub の Releases に置いている(Web で公開したときは起動時にここから取ってくる)
+MODEL_URL = os.environ.get("MORSE_MODEL_URL",  # テストでは手元のファイル(file://)に差し替える
+                           "https://github.com/laboheme-lover/light-morse-ai/releases/latest/download/best_model.pt")
+# Web 版(Streamlit Community Cloud はリポジトリを /mount/src/ に置く)。PC の中の動画の場所や「参照…」は使えないので隠す
+WEB_MODE = os.environ.get("MORSE_WEB_MODE") == "1" or str(APP_DIR).startswith("/mount/src/")
+WEB_MAX_UPLOAD_MB = 300  # .streamlit/config.toml の server.maxUploadSize と合わせる
 
 # ファイルを選ぶ画面を開いて、選んだ場所を UTF-8 で書き出す(取り消したら何も書かない)
 PICK_SCRIPT = r'''
@@ -60,6 +68,32 @@ sys.stdout.buffer.write(path.encode("utf-8"))
 
 
 # --- 処理(画面から独立。単体テストできる) ------------------------------------
+
+
+def ensure_model(path: Path, url: str = MODEL_URL) -> None:
+    """学習済みモデルがなければ url から取ってくる。途中で切れても壊れたファイルを残さないよう、一時ファイルに落としてから置き換える。"""
+    if path.exists():
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".part")
+    os.close(fd)
+    try:
+        urllib.request.urlretrieve(url, tmp)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def save_upload(uploaded, folder: Path) -> Path:
+    """アップロードされた動画を一時ファイルに書いて場所を返す。メモリに丸ごとの写しを作らないよう少しずつ書く。
+    Web 版では何人も同時に使うので、同じ名前の別の動画と混ざらないよう、アップロードごとの ID を名前に入れる。"""
+    dst = folder / f"light_upload_{uploaded.file_id}{Path(uploaded.name).suffix.lower()}"
+    if not dst.exists() or dst.stat().st_size != uploaded.size:
+        uploaded.seek(0)
+        with open(dst, "wb") as f:
+            shutil.copyfileobj(uploaded, f, 16 * 1024 * 1024)
+    return dst
 
 
 def initial_dir_for(current: str, default: Path = DEFAULT_VIDEO_DIR) -> str:
@@ -240,8 +274,12 @@ def main() -> None:
 
     model_path = MODELS_DIR / "best_model.pt"
     if not model_path.exists():
-        st.error(f"学習済みモデルが見つかりません: {model_path}")
-        return
+        try:
+            with st.spinner("学習済みモデルを GitHub から取ってきています..."):
+                ensure_model(model_path)
+        except Exception as exc:  # noqa: BLE001 - 通信できないときは、手で置く方法を示す
+            st.error(f"学習済みモデルを取ってこられませんでした({exc})。{MODEL_URL} から落として {model_path} に置いてください。")
+            return
     model, labels = get_model(model_path.stat().st_mtime)
 
     with st.sidebar:
@@ -250,24 +288,26 @@ def main() -> None:
                              help="確信度がこの値未満の文字を「要確認」として色を付けます。")
 
     st.subheader("1. 動画を選ぶ")
-    col_path, col_browse = st.columns([6, 1], vertical_alignment="bottom")
-    path_input = col_path.text_input(
-        "動画ファイルの場所(例: C:\\動画\\xxx_sentence.mp4)", key="video_path",
-        help="文章の動画は数GBになるため、「参照…」で選ぶか、ファイルの場所を入力してください。大きさの上限はありません。"
-        "OneDrive のファイルも使えます(読み込み時にダウンロードされます)。")
-    col_browse.button("参照…", on_click=_browse, use_container_width=True,
-                      help="ファイルを選ぶ画面を開きます(ブラウザの手前に出ます)。")
-    uploaded = st.file_uploader("または動画をアップロード(1GBまで)", type=["mp4", "mov"])
+    path_input = ""
+    if WEB_MODE:
+        uploaded = st.file_uploader(f"動画をアップロード({WEB_MAX_UPLOAD_MB}MBまで)", type=["mp4", "mov"],
+                                    help="Web 版は短い動画向けです。数GBある文章の動画は、PC 版(GitHub の README を参照)で読んでください。")
+    else:
+        col_path, col_browse = st.columns([6, 1], vertical_alignment="bottom")
+        path_input = col_path.text_input(
+            "動画ファイルの場所(例: C:\\動画\\xxx_sentence.mp4)", key="video_path",
+            help="文章の動画は数GBになるため、「参照…」で選ぶか、ファイルの場所を入力してください。大きさの上限はありません。"
+            "OneDrive のファイルも使えます(読み込み時にダウンロードされます)。")
+        col_browse.button("参照…", on_click=_browse, use_container_width=True,
+                          help="ファイルを選ぶ画面を開きます(ブラウザの手前に出ます)。")
+        uploaded = st.file_uploader("または動画をアップロード(1GBまで)", type=["mp4", "mov"])
     path = ""
     if uploaded is not None:
-        tmp = Path(tempfile.gettempdir()) / f"light_upload_{uploaded.name}"
-        if not tmp.exists() or tmp.stat().st_size != uploaded.size:
-            tmp.write_bytes(uploaded.getvalue())
-        path = str(tmp)
+        path = str(save_upload(uploaded, Path(tempfile.gettempdir())))
     elif path_input.strip():
         path = path_input.strip().strip('"')
     if not path:
-        st.info("動画の場所を入力するか、動画をアップロードしてください。")
+        st.info("動画をアップロードしてください。" if WEB_MODE else "動画の場所を入力するか、動画をアップロードしてください。")
         return
     if not Path(path).exists():
         st.error(f"ファイルが見つかりません: {path}")

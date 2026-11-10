@@ -3,7 +3,8 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
-.streamlit/
+.streamlit/*
+!.streamlit/config.toml
 
 # データ(学習データは generate_light_dataset.py で、明るさの列は measure_clips.py / evaluate_sentences.py で作り直せる)
 data/

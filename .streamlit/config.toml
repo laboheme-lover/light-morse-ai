@@ -1,0 +1,6 @@
+# Web 版(Streamlit Community Cloud)の設定。PC では start_app.bat が --server.maxUploadSize 1024 で上書きする
+[server]
+maxUploadSize = 300
+
+[browser]
+gatherUsageStats = false
