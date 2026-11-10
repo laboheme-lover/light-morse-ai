@@ -291,7 +291,9 @@ def main() -> None:
     path_input = ""
     if WEB_MODE:
         uploaded = st.file_uploader(f"動画をアップロード({WEB_MAX_UPLOAD_MB}MBまで)", type=["mp4", "mov"],
-                                    help="Web 版は短い動画向けです。数GBある文章の動画は、PC 版(GitHub の README を参照)で読んでください。")
+                                    help="縮めずに読みたいときは PC 版(GitHub の README を参照)を使ってください。")
+        st.caption("撮影したままの動画は 1 分で約 1GB あります。PC で compress_video.bat を使って縮めてから上げてください"
+                   "(20 分の動画が約 50MB になります。縮めても読み取りの精度は変わらないことを、文章の動画 49 本で確かめました)。")
     else:
         col_path, col_browse = st.columns([6, 1], vertical_alignment="bottom")
         path_input = col_path.text_input(
